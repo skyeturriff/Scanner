@@ -103,11 +103,11 @@ Token mlwpar_next_token(Buffer * sc_buf) {
 		}
 
 		/* Test for empty space */					/* <---- Test for all white space characters */
-		else if (c == ' ')
+		else if (c == ' ' || c == '\t')
 			continue;
 
 		/* Test for new line */						/* <---- Test for all new line characters */
-		else if (c == '\n') {
+		else if (c == '\n' || c == '\r') {
 			line++;
 			continue;
 		}
@@ -265,7 +265,7 @@ Token mlwpar_next_token(Buffer * sc_buf) {
 				while (temp_char != '\n') {									/** <---- test for all newline characters /
 
 					/* Error if comment does not end in line terminator */														
-					if ((temp_char == '\0') | (temp_char == EOF)) {
+					if ((temp_char == '\0') || (temp_char == EOF)) {
 						t.code = ERR_T;
 						t.attribute.err_lex[0] = '!';
 						t.attribute.err_lex[1] = '<';
@@ -294,7 +294,7 @@ Token mlwpar_next_token(Buffer * sc_buf) {
 			while (temp_char != '\n') {
 
 				/* If SEOF, retract so it will be recognized next read */
-				if ((temp_char == '\0') | (temp_char == EOF)) {
+				if ((temp_char == '\0') || (temp_char == EOF)) {
 					b_retract(sc_buf);
 					return t;
 				}
@@ -319,19 +319,25 @@ Token mlwpar_next_token(Buffer * sc_buf) {
 			while (temp_char != '"') {
 
 				/* If SEOF found before closing ", illegal string */
-				if ((temp_char == '\0') | (temp_char == EOF)) {
+				if ((temp_char == '\0') || (temp_char == EOF)) {
 					t.code = ERR_T;
-					str_len = (b_getc_offset(sc_buf) - 1) - b_mark(sc_buf);
-					if (str_len > MAX_CHARS) str_len = MAX_CHARS;
+					lexend = b_getc_offset(sc_buf) - 1;
 					b_retract_to_mark(sc_buf);
 
 					/* Add string to error token attribute */
-					for (i = 0; i < str_len; i++)
+					for (i = 0; i < MAX_CHARS; i++)
 						t.attribute.err_lex[i] = b_getc(sc_buf);
 					t.attribute.err_lex[i++] = '.';
 					t.attribute.err_lex[i++] = '.';
 					t.attribute.err_lex[i++] = '.';
 					t.attribute.err_lex[i++] = '\0';
+
+					/* If error string was longer than size allowed for error token attribute 
+					length, set input buffer offset to end of error string */
+					if (lexend > MAX_CHARS) {
+						b_setmark(sc_buf, lexend);
+						b_retract_to_mark(sc_buf);
+					}
 
 					/* Return error token */
 					return t;
@@ -374,22 +380,27 @@ Token mlwpar_next_token(Buffer * sc_buf) {
 		}
 
 		/* Process state transition table */						/* count line numbers??? */
-		else if (isalpha(c) | isdigit(c)) {
+		else if (isalpha(c) || isdigit(c)) {
 			b_setmark(sc_buf, b_getc_offset(sc_buf) - 1);
 			state = 0;
+			state = get_next_state(state, c, &accept);
 
-			do {
-				state = get_next_state(state, c, &accept);
+			//do {
+			//	state = get_next_state(state, c, &accept);
+			//	c = b_getc(sc_buf);		/* If end of input is reached, R_FAIL_1 is returned */
+			//} while (accept == NOAS);
+			while (accept == NOAS) {
 				c = b_getc(sc_buf);
-			} while (accept == NOAS);
+				state = get_next_state(state, c, &accept);
+			}
 
 			/* Token found - process final state */
 			if (accept == ASWR) 
-				b_retract(sc_buf);
+				b_retract(sc_buf);	//does this put % back in input stream
 
 			/* Get beginning and end of the lexeme */
 			lexstart = b_mark(sc_buf);
-			lexend = b_getc_offset(sc_buf) - 1;
+			lexend = b_getc_offset(sc_buf);// -1;
 
 			/* Create temporary lexeme buffer and store lexeme */
 			lex_buf = b_create(100, 0, 'f');						/* ERROR IF LEX_BUF == NULL */
@@ -442,16 +453,17 @@ int get_next_state(int state, char c, int *accept) {
 int char_class(char c) {
 	int val;
 
-	if (isalpha(c)) val = 0;	/* letter */
-	else if (c == 0) val = 1;	/* 0 */
+	if (isalpha(c)) val = 0;			/* letter */
+	else if (c == 0) val = 1;	
 	else if (isdigit(c)) {
-		if ((c >= 1) & (c <= 7))
-			val = 2;			/* 1-7 */
-		else val = 3;			/* 8-9 */
+		if (c == 0) val = 1;			/* 0 */
+		else if ((c >= 1) && (c <= 7))
+			val = 2;					/* 1-7 */
+		else val = 3;					/* 8-9 */
 	}
-	else if (c == '.') val = 4;	/* . */
-	else if (c == '%') val = 5;	/* % */
-	else val = 6;				/* other */
+	else if (c == '.') val = 4;			/* . */
+	else if (c == '%') val = 5;			/* % */
+	else val = 6;						/* other */
 
 	return val;
 }
@@ -491,7 +503,23 @@ Token aa_func03(char *lexeme) {
 }
 
 Token aa_func05(char *lexeme) {
-	Token t = { 0 };
+	Token t;
+	unsigned int i;
+
+	/* Catch overflow error and produce error token. Integer must be
+	5 digits and less than or equal to 65535 (2 bytes in memory) */
+	if ((strlen(lexeme) >= INL_LEN) && (atol(lexeme) > USHRT_MAX)) {
+		t.code = ERR_T;
+		for (i = 0; (i < strlen(lexeme)) && (i < ERR_LEN); i++)
+			t.attribute.err_lex[i] = lexeme[i];
+		t.attribute.err_lex[i] = '\0';
+		return t;
+	}
+	
+	/* Create token for DIL */
+	t.code = INL_T;
+	t.attribute.int_value = atoi(lexeme);
+
 	return t;
 }
 
