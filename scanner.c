@@ -352,14 +352,14 @@ Token mlwpar_next_token(Buffer * sc_buf) {
 			str_len = (b_getc_offset(sc_buf) - 1) - b_mark(sc_buf);
 
 			/* Mark end of string literal, before retracting to start */
-			lexend = b_getc_offset(sc_buf);
+			//lexend = b_getc_offset(sc_buf);
 			b_retract_to_mark(sc_buf);
 
 			/* Mark offset in string literal table for token attribute */
 			temp_offset = b_size(str_LTBL);
 
 			/* Add string to string literal table, excluding "" */
-			for (i = 0; i <= MAX_CHARS && i <= str_len; i++) {
+			for (i = 0; i <= str_len; i++) {
 				temp_char = b_getc(sc_buf);
 				if (temp_char != '"')
 					b_addc(str_LTBL, temp_char);
@@ -368,10 +368,10 @@ Token mlwpar_next_token(Buffer * sc_buf) {
 
 			/* if string was longer than size allowed in string literal
 			table, set input buffer offset to end of string */
-			if (str_len > MAX_CHARS) {
-				b_setmark(sc_buf, lexend);
-				b_retract_to_mark(sc_buf);
-			}
+			//if (str_len > MAX_CHARS) {
+			//	b_setmark(sc_buf, lexend);
+			//	b_retract_to_mark(sc_buf);
+			//}
 
 			/* Return string literal token */
 			t.code = STR_T;
