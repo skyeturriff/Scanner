@@ -472,6 +472,15 @@ int char_class(char c) {
 Token aa_func02(char *lexeme) {
 	Token t;
 	unsigned int i;
+	int kwt_index;
+
+	/* Check if token is a keyword */
+	kwt_index = iskeyword(lexeme);
+	if (kwt_index != -1) {
+		t.code = KW_T;
+		t.attribute.kwt_idx = kwt_index;
+		return t;
+	}
 
 	/* Create token for AVID */
 	t.code = AVID_T;
@@ -549,4 +558,13 @@ Token aa_func13(char *lexeme) {
 }
 
 /* HERE YOU WRITE YOUR ADDITIONAL FUNCTIONS (IF ANY). FOR EXAMPLE */
-int iskeyword(char * kw_lexeme){}
+int iskeyword(char * kw_lexeme) {
+	unsigned int i;
+
+	for (i = 0; i < KWT_SIZE; i++) {
+		if (!strcmp(kw_lexeme, kw_table[i]))
+			return i;
+	}
+
+	return -1;
+}
