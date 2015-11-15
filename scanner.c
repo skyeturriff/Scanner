@@ -515,9 +515,9 @@ Token aa_func05(char *lexeme) {
 	Token t;
 	unsigned int i;
 
-	/* Catch overflow error and produce error token. Integer must be
-	5 digits and less than or equal to 65535 (2 bytes in memory) */
-	if ((strlen(lexeme) >= INL_LEN) && (atol(lexeme) > USHRT_MAX)) {
+	/* Catch overflow error and produce error token. Integer literals must 
+	be unsigned, no more than 5 digits in length or 2 bytes in memory */
+	if ((strlen(lexeme) >= INL_LEN) && (atol(lexeme) > USHRT_MAX)) {		/* <--- this is platform dependant :( */
 		t.code = ERR_T;
 		for (i = 0; (i < strlen(lexeme)) && (i < ERR_LEN); i++)
 			t.attribute.err_lex[i] = lexeme[i];
@@ -533,7 +533,25 @@ Token aa_func05(char *lexeme) {
 }
 
 Token aa_func08(char *lexeme) {
-	Token t = { 0 };
+	Token t;
+	unsigned int i;
+	double floatValue;
+
+	/* Catch overflow error and produce error token. Floating point
+	literals must be unsigned and not more than 4 bytes in memory */
+	floatValue = atof(lexeme);
+	if (floatValue > FLT_MAX || floatValue < FLT_MIN) {						/* <--- this is platform dependant :( */
+		t.code = ERR_T;
+		for (i = 0; (i < strlen(lexeme)) && (i < ERR_LEN); i++)
+			t.attribute.err_lex[i] = lexeme[i];
+		t.attribute.err_lex[i] = '\0';
+		return t;
+	}
+
+	/* Create token for FPL */
+	t.code = FPL_T;
+	t.attribute.flt_value = floatValue;
+
 	return t;
 }
 
