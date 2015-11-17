@@ -89,7 +89,7 @@ Token mlwpar_next_token(Buffer * sc_buf) {
 	short temp_offset;		/* storage for offset to beginning of string */
 	char temp_char;			/* storage for char found in string or comment */
 	short str_len;			/* length of the string */
-	short MAX_CHARS = 17;	/* maximum chars that can be stored in error attribute */
+	//short MAX_CHARS = 17;	/* maximum chars that can be stored in error attribute */
 	int i;					/* loop counter */
 
 	while (1) { /* Endless loop broken by token returns. Will generate warning */
@@ -97,16 +97,16 @@ Token mlwpar_next_token(Buffer * sc_buf) {
 		c = b_getc(sc_buf);	/* Get the next symbol from the input buffer */
 
 		/* Test for end of source file */
-		if (c == '\0') {
+		if (c == '\0' || c == EOF) {
 			t.code = SEOF_T;
 			return t;
 		}
 
-		/* Test for empty space */					/* <---- Test for all white space characters */
-		else if (c == ' ' || c == '\t')
+		/* Test for white space */					
+		else if (c == ' ' || c == '\t' || c == 'VT' || c == 'FF')
 			continue;
 
-		/* Test for new line */						/* <---- Test for all new line characters */
+		/* Test for line terminator */						
 		else if (c == '\n' || c == '\r') {
 			line++;
 			continue;
@@ -314,7 +314,7 @@ Token mlwpar_next_token(Buffer * sc_buf) {
 			/* Set mark to beginning of string */
 			b_setmark(sc_buf, b_getc_offset(sc_buf) - 1);
 
-			/* Check for legal string -- delegate to separate function??? */
+			/* Check for legal string  */
 			temp_char = b_getc(sc_buf);
 			while (temp_char != '"') {
 
@@ -322,19 +322,21 @@ Token mlwpar_next_token(Buffer * sc_buf) {
 				if ((temp_char == '\0') || (temp_char == EOF)) {
 					t.code = ERR_T;
 					lexend = b_getc_offset(sc_buf) - 1;
+					str_len = lexend - b_mark(sc_buf);
 					b_retract_to_mark(sc_buf);
 
 					/* Add string to error token attribute */
-					for (i = 0; i < MAX_CHARS; i++)
+					for (i = 0; i < str_len && i < ERR_LEN; i++)
 						t.attribute.err_lex[i] = b_getc(sc_buf);
-					t.attribute.err_lex[i++] = '.';
-					t.attribute.err_lex[i++] = '.';
-					t.attribute.err_lex[i++] = '.';
-					t.attribute.err_lex[i++] = '\0';
+					t.attribute.err_lex[i] = '\0';	/* Make C-type string */
 
 					/* If error string was longer than size allowed for error token attribute 
-					length, set input buffer offset to end of error string */
-					if (lexend > MAX_CHARS) {
+					length, append "..." and '\0' to the error token attribute, and set input 
+					buffer offset to end of error string */
+					if (str_len > ERR_LEN) {
+						t.attribute.err_lex[--i] = '.';
+						t.attribute.err_lex[--i] = '.';
+						t.attribute.err_lex[--i] = '.';
 						b_setmark(sc_buf, lexend);
 						b_retract_to_mark(sc_buf);
 					}
@@ -350,9 +352,6 @@ Token mlwpar_next_token(Buffer * sc_buf) {
 			/* Closing " found, process legal string literal */
 			/* Calculate length of string literal */
 			str_len = (b_getc_offset(sc_buf) - 1) - b_mark(sc_buf);
-
-			/* Mark end of string literal, before retracting to start */
-			//lexend = b_getc_offset(sc_buf);
 			b_retract_to_mark(sc_buf);
 
 			/* Mark offset in string literal table for token attribute */
@@ -366,13 +365,6 @@ Token mlwpar_next_token(Buffer * sc_buf) {
 			}
 			b_addc(str_LTBL, '\0');
 
-			/* if string was longer than size allowed in string literal
-			table, set input buffer offset to end of string */
-			//if (str_len > MAX_CHARS) {
-			//	b_setmark(sc_buf, lexend);
-			//	b_retract_to_mark(sc_buf);
-			//}
-
 			/* Return string literal token */
 			t.code = STR_T;
 			t.attribute.str_offset = temp_offset;
@@ -385,10 +377,6 @@ Token mlwpar_next_token(Buffer * sc_buf) {
 			state = 0;
 			state = get_next_state(state, c, &accept);
 
-			//do {
-			//	state = get_next_state(state, c, &accept);
-			//	c = b_getc(sc_buf);		/* If end of input is reached, R_FAIL_1 is returned */
-			//} while (accept == NOAS);
 			while (accept == NOAS) {
 				c = b_getc(sc_buf);
 				state = get_next_state(state, c, &accept);
@@ -396,22 +384,22 @@ Token mlwpar_next_token(Buffer * sc_buf) {
 
 			/* Token found - process final state */
 			if (accept == ASWR) 
-				b_retract(sc_buf);	//does this put % back in input stream
+				b_retract(sc_buf);
 
 			/* Get beginning and end of the lexeme */
 			lexstart = b_mark(sc_buf);
 			lexend = b_getc_offset(sc_buf);// -1;
 
 			/* Create temporary lexeme buffer and store lexeme */
-			lex_buf = b_create(100, 0, 'f');						/* ERROR IF LEX_BUF == NULL */
+			lex_buf = b_create(100, 0, 'f');	/* ERROR IF LEX_BUF == NULL */
 			str_len = lexend - lexstart;
 			b_retract_to_mark(sc_buf);
 			for (i = 0; i < str_len; i++)
-				b_addc(lex_buf, b_getc(sc_buf));					/* CHECK NULL IF LEX_BUF NOT IN FIXED MODE */
+				b_addc(lex_buf, b_getc(sc_buf));
 			b_addc(lex_buf, '\0');
 
-			/* Call accepting function */
-			t = aa_table[state](lex_buf->cb_head);					/* HOW TO NOT REFER to cb_head? */
+			/* Call accepting function, passing pointer to beginning of lex_buf */
+			t = aa_table[state](b_setmark(lex_buf, 0));
 			b_destroy(lex_buf);
 			return t;
 		}
@@ -454,7 +442,7 @@ int char_class(char c) {
 	int val;
 
 	if (isalpha(c)) val = 0;			/* letter */
-	else if (c == 0) val = 1;	
+	//else if (c == '0') val = 1;		/* zero */
 	else if (isdigit(c)) {
 		if (c == 0) val = 1;			/* 0 */
 		else if ((c >= 1) && (c <= 7))
@@ -473,7 +461,7 @@ Token aa_func02(char *lexeme) {
 	Token t;
 	unsigned int i;
 	int kwt_index;
-
+//	printf("Lexeme: |%s|\n", lexeme);
 	/* Check if token is a keyword */
 	kwt_index = iskeyword(lexeme);
 	if (kwt_index != -1) {
@@ -495,7 +483,7 @@ Token aa_func02(char *lexeme) {
 Token aa_func03(char *lexeme) {
 	Token t;
 	unsigned int i;
-
+//	printf("Lexeme: |%s|\n", lexeme);
 	/* Create token for SVID */
 	t.code = SVID_T;
 	for (i = 0; (i < strlen(lexeme)) && (i < VID_LEN); i++)
@@ -514,20 +502,30 @@ Token aa_func03(char *lexeme) {
 Token aa_func05(char *lexeme) {
 	Token t;
 	unsigned int i;
-
+	long value;
+//	printf("Lexeme: |%s|\n", lexeme);
 	/* Catch overflow error and produce error token. Integer literals must 
-	be unsigned, no more than 5 digits in length or 2 bytes in memory */
-	if ((strlen(lexeme) >= INL_LEN) && (atol(lexeme) > USHRT_MAX)) {		/* <--- this is platform dependant :( */
-		t.code = ERR_T;
-		for (i = 0; (i < strlen(lexeme)) && (i < ERR_LEN); i++)
-			t.attribute.err_lex[i] = lexeme[i];
-		t.attribute.err_lex[i] = '\0';
-		return t;
+	be no more than 5 digits in length and 2 bytes in memory 
+	if ((strlen(lexeme) >= INL_LEN) && (atol(lexeme) > SHRT_MAX)) {	
+		
+	}
+	*/
+	
+	if (strlen(lexeme) > INL_LEN) {
+		return aa_table[ES](lexeme);
+		
+	}
+
+	value = atol(lexeme);
+
+	/* Catch overflow error and produce error token */
+	if (value > PLATY_MAX) {
+		return aa_table[ES](lexeme);
 	}
 	
 	/* Create token for DIL */
 	t.code = INL_T;
-	t.attribute.int_value = atoi(lexeme);
+	t.attribute.int_value = (int)value;
 
 	return t;
 }
@@ -535,43 +533,66 @@ Token aa_func05(char *lexeme) {
 Token aa_func08(char *lexeme) {
 	Token t;
 	unsigned int i;
-	double floatValue;
+	double floatValue = atof(lexeme);
 
-	/* Catch overflow error and produce error token. Floating point
-	literals must be unsigned and not more than 4 bytes in memory */
-	floatValue = atof(lexeme);
-	if (floatValue > FLT_MAX || floatValue < FLT_MIN) {						/* <--- this is platform dependant :( */
-		t.code = ERR_T;
-		for (i = 0; (i < strlen(lexeme)) && (i < ERR_LEN); i++)
-			t.attribute.err_lex[i] = lexeme[i];
-		t.attribute.err_lex[i] = '\0';
-		return t;
+	/*
+	if ((floatValue > FLT_MAX) || (floatValue < (-FLT_MAX))) {
+
+	}
+	*/
+
+	double upperBound = FLT_MAX;	/* FPL can't be more that 4 bytes in memory */
+	double lowerBound = 0.0;		/* and must be non-negative */
+
+	/* Catch overflow error and produce error token */
+	if (floatValue > FLT_MAX || (floatValue < FLT_MIN && floatValue != 0.0)) {
+		
+		return aa_table[ES](lexeme);
 	}
 
 	/* Create token for FPL */
 	t.code = FPL_T;
-	t.attribute.flt_value = floatValue;
+	t.attribute.flt_value = (float)floatValue;
 
 	return t;
 }
 
 Token aa_func10(char *lexeme) {
 	Token t = { 0 };
+
 	return t;
 }
 
 Token aa_func11(char *lexeme) {
-	Token t = { 0 };
+	Token t;
+	unsigned int i;
+	
+	t.code = ERR_T;
+	for (i = 0; (i < strlen(lexeme)) && (i < ERR_LEN); i++)
+		t.attribute.err_lex[i] = lexeme[i];
+	t.attribute.err_lex[i] = '\0';
 	return t;
 }
 
 Token aa_func12(char *lexeme) {
-	Token t = { 0 };
+	Token t;
+	unsigned int i;
+	printf("from 12\n");
+	t.code = ERR_T;
+	for (i = 0; (i < strlen(lexeme)) && (i < ERR_LEN); i++)
+		t.attribute.err_lex[i] = lexeme[i];
+	t.attribute.err_lex[i] = '\0';
 	return t;
 }
 
 Token aa_func13(char *lexeme) {
-	Token t = { 0 };
+	Token t;
+	unsigned int i;
+	
+	t.code = ERR_T;
+	for (i = 0; (i < strlen(lexeme)) && (i < ERR_LEN); i++)
+		t.attribute.err_lex[i] = lexeme[i];
+	t.attribute.err_lex[i] = '\0';
 	return t;
 }
 
@@ -585,4 +606,8 @@ int iskeyword(char * kw_lexeme) {
 	}
 
 	return -1;
+}
+
+static long atool(char * lexeme) {
+	return strtol(lexeme, NULL, 8);
 }

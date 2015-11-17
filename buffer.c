@@ -44,6 +44,9 @@ Buffer* b_create(short init_capacity, char inc_factor, char o_mode) {
 	See C99 Standard 6.3.1.3 */
 	unsigned char uc_inc_factor = inc_factor;
 
+	/* Try to allocate memory for one Buffer structure */
+	Buffer* pBD;
+	
 	/* Test for invalid parameters. */
 	if (init_capacity < 0 ||
 		(o_mode != 'a' && o_mode != 'f' && o_mode != 'm') ||
@@ -51,8 +54,7 @@ Buffer* b_create(short init_capacity, char inc_factor, char o_mode) {
 		((o_mode == 'f') && (init_capacity == 0)))
 		return NULL;
 
-	/* Try to allocate memory for one Buffer structure */
-	Buffer* pBD = (Buffer *)calloc(1, sizeof(Buffer));
+	pBD = (Buffer *)calloc(1, sizeof(Buffer));
 
 	/* Check for successful allocation */
 	if (pBD == NULL)
