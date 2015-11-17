@@ -24,19 +24,21 @@
 #define ES 12	/* Error state */
 #define IS -1   /* Inavalid state */
 
+#define PLATY_MAX 32767	/* Integer literals must <= 2 bytes in memory */
+
 /* State transition table definition */
 #define TABLE_COLUMNS 7	
 
 /*transition table - type of states defined in separate table */
 int  st_table[][TABLE_COLUMNS] = {
-		{ 1, 6, 4, 4, ES, ES, ES },		/* State 0 */
+		{ 1, 6, 4, 4, IS, IS, IS },		/* State 0 */
 		{ 1, 1, 1, 1, ES, 3, 2 },		/* State 1 */
 		{ IS, IS, IS, IS, IS, IS, IS },	/* State 2 */
 		{ IS, IS, IS, IS, IS, IS, IS },	/* State 3 */
 		{ ES, 4, 4, 4, 7, 5, 5 },		/* State 4 */
 		{ IS, IS, IS, IS, IS, IS, IS },	/* State 5 */
 		{ ES, ES, 9, ES, 7, ES, 5 },	/* State 6 */
-		{ ES, 7, 7, 7, 8, 8, 8 },		/* State 7 */
+		{ 8, 7, 7, 7, 8, 8, 8 },		/* State 7 */
 		{ IS, IS, IS, IS, IS, IS },		/* State 8 */
 		{ ES, 9, 9, ES, ES, ES, 5 },	/* State 9 */
 		{ IS, IS, IS, IS, IS, IS },		/* State 10 */
