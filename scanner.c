@@ -89,7 +89,6 @@ Token mlwpar_next_token(Buffer * sc_buf) {
 	short temp_offset;		/* storage for offset to beginning of string */
 	char temp_char;			/* storage for char found in string or comment */
 	short str_len;			/* length of the string */
-	//short MAX_CHARS = 17;	/* maximum chars that can be stored in error attribute */
 	int i;					/* loop counter */
 
 	while (1) { /* Endless loop broken by token returns. Will generate warning */
@@ -371,7 +370,7 @@ Token mlwpar_next_token(Buffer * sc_buf) {
 			return t;
 		}
 
-		/* Process state transition table */						/* count line numbers??? */
+		/* Process state transition table */
 		else if (isalpha(c) || isdigit(c)) {
 			b_setmark(sc_buf, b_getc_offset(sc_buf) - 1);
 			state = 0;
@@ -441,17 +440,15 @@ int get_next_state(int state, char c, int *accept) {
 int char_class(char c) {
 	int val;
 
-	if (isalpha(c)) val = 0;			/* letter */
-	//else if (c == '0') val = 1;		/* zero */
-	else if (isdigit(c)) {
-		if (c == 0) val = 1;			/* 0 */
-		else if ((c >= 1) && (c <= 7))
-			val = 2;					/* 1-7 */
-		else val = 3;					/* 8-9 */
-	}
-	else if (c == '.') val = 4;			/* . */
-	else if (c == '%') val = 5;			/* % */
-	else val = 6;						/* other */
+	if (isalpha(c)) val = 0;			/* Column 0: letter */
+	else if (c == '0') val = 1;			/* Column 1: zero */
+	else if ((c >= '1') && (c <= '7'))
+		val = 2;						/* Column 2: 1-7 */
+	else if ((c == '8') || (c == '9'))
+		val = 3;						/* Column 3: 8-9 */
+	else if (c == '.') val = 4;			/* Column 4: . */
+	else if (c == '%') val = 5;			/* Column 5: % */
+	else val = 6;						/* Column 6: other */
 
 	return val;
 }
@@ -461,7 +458,9 @@ Token aa_func02(char *lexeme) {
 	Token t;
 	unsigned int i;
 	int kwt_index;
+
 //	printf("Lexeme: |%s|\n", lexeme);
+
 	/* Check if token is a keyword */
 	kwt_index = iskeyword(lexeme);
 	if (kwt_index != -1) {
@@ -483,7 +482,9 @@ Token aa_func02(char *lexeme) {
 Token aa_func03(char *lexeme) {
 	Token t;
 	unsigned int i;
+
 //	printf("Lexeme: |%s|\n", lexeme);
+
 	/* Create token for SVID */
 	t.code = SVID_T;
 	for (i = 0; (i < strlen(lexeme)) && (i < VID_LEN); i++)
@@ -501,27 +502,18 @@ Token aa_func03(char *lexeme) {
 
 Token aa_func05(char *lexeme) {
 	Token t;
-	unsigned int i;
 	long value;
-//	printf("Lexeme: |%s|\n", lexeme);
-	/* Catch overflow error and produce error token. Integer literals must 
-	be no more than 5 digits in length and 2 bytes in memory 
-	if ((strlen(lexeme) >= INL_LEN) && (atol(lexeme) > SHRT_MAX)) {	
-		
-	}
-	*/
-	
-	if (strlen(lexeme) > INL_LEN) {
-		return aa_table[ES](lexeme);
-		
-	}
+
+//	printf("Lexeme from aa_func05: |%s|\n", lexeme);
+
+	if (strlen(lexeme) > INL_LEN)
+		return aa_table[ES](lexeme);	
 
 	value = atol(lexeme);
 
 	/* Catch overflow error and produce error token */
-	if (value > PLATY_MAX) {
+	if (value > PLATY_MAX)
 		return aa_table[ES](lexeme);
-	}
 	
 	/* Create token for DIL */
 	t.code = INL_T;
@@ -532,23 +524,12 @@ Token aa_func05(char *lexeme) {
 
 Token aa_func08(char *lexeme) {
 	Token t;
-	unsigned int i;
 	double floatValue = atof(lexeme);
 
-	/*
-	if ((floatValue > FLT_MAX) || (floatValue < (-FLT_MAX))) {
-
-	}
-	*/
-
-	double upperBound = FLT_MAX;	/* FPL can't be more that 4 bytes in memory */
-	double lowerBound = 0.0;		/* and must be non-negative */
-
+	/* FPL can't be more that 4 bytes in memory and must be non-negative */
 	/* Catch overflow error and produce error token */
-	if (floatValue > FLT_MAX || (floatValue < FLT_MIN && floatValue != 0.0)) {
-		
+	if (floatValue > FLT_MAX || (floatValue < FLT_MIN && floatValue != 0.0))
 		return aa_table[ES](lexeme);
-	}
 
 	/* Create token for FPL */
 	t.code = FPL_T;
@@ -558,26 +539,34 @@ Token aa_func08(char *lexeme) {
 }
 
 Token aa_func10(char *lexeme) {
-	Token t = { 0 };
+	Token t;
+	long value;
+
+//	printf("Lexeme from aa_func10: |%s|\n", lexeme);
+
+	if (strlen(lexeme) > INL_LEN+1)
+		return aa_table[ES](lexeme);
+
+	value = atool(lexeme);
+
+	/* Catch overflow error and produce error token */
+	if (value > PLATY_MAX)
+		return aa_table[ES](lexeme);
+
+	/* Create token for OIL */
+	t.code = INL_T;
+	t.attribute.int_value = (int)value;
 
 	return t;
 }
 
 Token aa_func11(char *lexeme) {
-	Token t;
-	unsigned int i;
-	
-	t.code = ERR_T;
-	for (i = 0; (i < strlen(lexeme)) && (i < ERR_LEN); i++)
-		t.attribute.err_lex[i] = lexeme[i];
-	t.attribute.err_lex[i] = '\0';
-	return t;
+	return aa_table[ES](lexeme);
 }
 
 Token aa_func12(char *lexeme) {
 	Token t;
 	unsigned int i;
-	printf("from 12\n");
 	t.code = ERR_T;
 	for (i = 0; (i < strlen(lexeme)) && (i < ERR_LEN); i++)
 		t.attribute.err_lex[i] = lexeme[i];
@@ -586,14 +575,7 @@ Token aa_func12(char *lexeme) {
 }
 
 Token aa_func13(char *lexeme) {
-	Token t;
-	unsigned int i;
-	
-	t.code = ERR_T;
-	for (i = 0; (i < strlen(lexeme)) && (i < ERR_LEN); i++)
-		t.attribute.err_lex[i] = lexeme[i];
-	t.attribute.err_lex[i] = '\0';
-	return t;
+	return aa_table[ES](lexeme);
 }
 
 /* HERE YOU WRITE YOUR ADDITIONAL FUNCTIONS (IF ANY). FOR EXAMPLE */
