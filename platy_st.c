@@ -142,6 +142,8 @@ int main(int argc, char ** argv) {
 	if (b_size(str_LTBL))
 		b_print(str_LTBL);
 
+	printf("Lines: %d\n", line);
+
 	b_destroy(sc_buf);
 	b_destroy(str_LTBL);
 	sc_buf = str_LTBL = NULL;

@@ -1,18 +1,18 @@
-/* Filename: scanner.c
-/* PURPOSE:
-*    SCANNER.C: Functions implementing a Lexical Analyzer (Scanner)
-*    as required for CST8152, Assignment #2
-*    scanner_init() must be called before using the scanner.
-*    The file is incomplete;
-*    Provided by: Svillen Ranev
-*    Version: 1.15.02
-*    Date: 29 September 2015
-*******************************************************************
-*    REPLACE THIS HEADER WITH YOUR HEADER
-*******************************************************************
-*/
+/*******************************************************************************
+* File Name:		scanner.c
+* Compiler:			MS Visual Studio 2013
+* Author:			S^R with additions by Skye Turriff
+* Course:			CST 8152 - Compilers, Lab Section:	011
+* Assignment:		1
+* Date:				5 October 2015
+* Professor:		Sv. Ranev
+* Purpose:			Functions implementing a Lexical Analyzer (Scanner)
+*					as required for CST8152, Assignment #2. Function 
+*					scanner_init() must be called before using the scanner.
+* Function list:	
+*******************************************************************************/
 
-/* The #define _CRT_SECURE_NO_WARNINGS should be used in MS Visual Studio projects
+/* The #define _CRT_SECURE_NO_WARNINGS should be used in MS VS projects
 * to suppress the warnings about using "unsafe" functions like fopen()
 * and standard sting library functions defined in string.h.
 * The define does not have any effect in Borland compiler projects. */
@@ -41,24 +41,24 @@
 *    VARIABLES
 *******************************************************************/
 
-/* Global objects - variables */
-extern Buffer * str_LTBL;						/* String literal table */
-int line;										/* current line number of the source code */
-extern int scerrnum;							/* run-time error number */
+/* Global variables */
+extern Buffer * str_LTBL;	/* String literal table */
+int line;					/* Current line number of the source code */
+extern int scerrnum;		/* Run-time error number */
 
-/* Local(file) global objects - variables */
-static Buffer *lex_buf;							/* pointer to temporary lexeme buffer CREATE FIXED BUFFER, then you don't have to check for null when addc */
+/* Local(file) global variables */
+static Buffer *lex_buf;		/* Pointer to temporary lexeme buffer */
 
 
 /*******************************************************************
 *    FUNCTION PROTOTYPES
 *******************************************************************/
 
-/* scanner.c static(local) functions */
-static int char_class(char c);					/* character class function */
-static int get_next_state(int, char, int *);	/* state machine function */
-static int iskeyword(char * kw_lexeme);			/* keywords lookup functuion */
-static long atool(char * lexeme);				/* converts octal string to decimal value */
+/* Static(local) functions */
+static int char_class(char c);					/* Character class function */
+static int get_next_state(int, char, int *);	/* State machine function */
+static int iskeyword(char * kw_lexeme);			/* Keywords lookup function */
+static long atool(char * lexeme);	/* Converts octal string to decimal value */
 
 
 /*******************************************************************
@@ -85,7 +85,7 @@ Token mlwpar_next_token(Buffer * sc_buf) {
 	short lexend;			/* end offset of a lexeme in the input buffer */
 	int accept = NOAS;		/* type of state - initially not accepting */
 
-	/* The following variables are used when testing for string literals, comments */
+	/* The following are used when recognizing string literals, comments */
 	short temp_offset;		/* storage for offset to beginning of string */
 	char temp_char;			/* storage for char found in string or comment */
 	short str_len;			/* length of the string */
@@ -261,7 +261,7 @@ Token mlwpar_next_token(Buffer * sc_buf) {
 
 				/* Skip all symbols until line terminator */
 				temp_char = b_getc(sc_buf);
-				while (temp_char != '\n') {									/** <---- test for all newline characters /
+				while (temp_char != '\n' && temp_char != '\r') {
 
 					/* Error if comment does not end in line terminator */														
 					if ((temp_char == '\0') || (temp_char == EOF)) {
@@ -290,7 +290,7 @@ Token mlwpar_next_token(Buffer * sc_buf) {
 
 			/* Skip all symbols until line terminator or SEOF */
 			temp_char = b_getc(sc_buf);
-			while (temp_char != '\n') {
+			while (temp_char != '\n' && temp_char != '\r') {
 
 				/* If SEOF, retract so it will be recognized next read */
 				if ((temp_char == '\0') || (temp_char == EOF)) {
@@ -307,7 +307,7 @@ Token mlwpar_next_token(Buffer * sc_buf) {
 			return t;
 		}
 
-		/* Test for string literal */					/* <----- count line numbers */
+		/* Test for string literal */
 		else if (c == '"') {
 
 			/* Set mark to beginning of string */
@@ -316,6 +316,10 @@ Token mlwpar_next_token(Buffer * sc_buf) {
 			/* Check for legal string  */
 			temp_char = b_getc(sc_buf);
 			while (temp_char != '"') {
+
+				/* If string literal crosses to new line, count it*/
+				if (temp_char == '\n' || temp_char == '\r')
+					line++;
 
 				/* If SEOF found before closing ", illegal string */
 				if ((temp_char == '\0') || (temp_char == EOF)) {
@@ -329,9 +333,8 @@ Token mlwpar_next_token(Buffer * sc_buf) {
 						t.attribute.err_lex[i] = b_getc(sc_buf);
 					t.attribute.err_lex[i] = '\0';	/* Make C-type string */
 
-					/* If error string was longer than size allowed for error token attribute 
-					length, append "..." and '\0' to the error token attribute, and set input 
-					buffer offset to end of error string */
+					/* Append "..." and '\0' to lengthy error token attribute, 
+					and set input buffer offset to end of error string */
 					if (str_len > ERR_LEN) {
 						t.attribute.err_lex[--i] = '.';
 						t.attribute.err_lex[--i] = '.';
@@ -390,14 +393,14 @@ Token mlwpar_next_token(Buffer * sc_buf) {
 			lexend = b_getc_offset(sc_buf);// -1;
 
 			/* Create temporary lexeme buffer and store lexeme */
-			lex_buf = b_create(100, 0, 'f');	/* ERROR IF LEX_BUF == NULL */
+			lex_buf = b_create(100, 0, 'f');
 			str_len = lexend - lexstart;
 			b_retract_to_mark(sc_buf);
 			for (i = 0; i < str_len; i++)
 				b_addc(lex_buf, b_getc(sc_buf));
 			b_addc(lex_buf, '\0');
 
-			/* Call accepting function, passing pointer to beginning of lex_buf */
+			/* Call accepting function, pass pointer to start of lex_buf */
 			t = aa_table[state](b_setmark(lex_buf, 0));
 			b_destroy(lex_buf);
 			return t;
